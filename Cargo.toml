@@ -1,0 +1,12 @@
+[package]
+name = "i2ctest"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bmp180-nostd = {path = "bmp180-nostd"}
+mpu6050 = {path = "mpu6050-rs"}
+linux-embedded-hal = "0.4.0-alpha.3"
+tokio = { version = "1", features = ["full"] }

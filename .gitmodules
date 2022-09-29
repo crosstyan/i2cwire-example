@@ -1,0 +1,6 @@
+[submodule "bmp180-nostd"]
+	path = bmp180-nostd
+	url = https://github.com/crosstyan/bmp180-nostd
+[submodule "mpu6050-rs"]
+	path = mpu6050-rs
+	url = https://github.com/crosstyan/mpu6050-rs
