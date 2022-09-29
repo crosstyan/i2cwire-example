@@ -6,7 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bmp180-nostd = {path = "bmp180-nostd"}
-mpu6050 = {path = "mpu6050-rs"}
-linux-embedded-hal = "0.4.0-alpha.3"
+bmp180 = { package = "bmp180-nostd", path = "bmp180-nostd" }
+mpu6050 = { path = "mpu6050-rs" }
+anyhow = "1.0"
+linux-embedded-hal = "0.3.2"
 tokio = { version = "1", features = ["full"] }
+i2cdev = "0.5"
