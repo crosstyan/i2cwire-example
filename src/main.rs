@@ -2,12 +2,12 @@ use std::thread::sleep;
 use i2cdev::linux::LinuxI2CError;
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu6050::*;
-mod io_reader;
+pub mod lib;
 // use std::sync::{Arc, Mutex};
 
 fn main() -> Result<(), Mpu6050Error<LinuxI2CError>> {
     let i2c = I2cdev::new("/dev/i2c-1").expect("Failed to open i2c device for io reader");
-    let mut reader = io_reader::IoReader::new(i2c);
+    let mut reader = lib::IoReader::new(i2c);
 
     let i2c_bmp = I2cdev::new("/dev/i2c-1").expect("Failed to open i2c device for bmp");
     let i2c_mpu = I2cdev::new("/dev/i2c-1").expect("Failed to open i2c device for mpu");

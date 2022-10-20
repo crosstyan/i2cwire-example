@@ -26,11 +26,19 @@ impl<I, E> IoReader<I>
 where
     I: Write<Error = E> + WriteRead<Error = E>,
 {
-    /// Side effect free constructor with default sensitivies, no calibration
     pub fn new(i2c: I) -> Self {
         IoReader {
             i2c,
             slave_addr: DEFAULT_SLAVE_ADDR,
+            ios: HashMap::new(),
+            buf: [0; 64],
+        }
+    }
+
+    pub fn new_with_addr(i2c: I, slave_addr: u8) -> Self {
+        IoReader {
+            i2c,
+            slave_addr,
             ios: HashMap::new(),
             buf: [0; 64],
         }
@@ -65,7 +73,7 @@ where
                 let pin = decoded[i + 1];
                 let entry = self.ios.entry(pin);
                 entry.and_modify(|e| *e = count).or_insert(count);
-            } 
+            }
         }
         Ok(())
     }
@@ -85,7 +93,7 @@ pub fn decode(data: &BytesMut) -> Result<Vec<u8>, anyhow::Error> {
     // START LEN DATA CRC8 END
     let (s, rest) = data.split_first().unwrap();
     if (*s) != START {
-      bail!("START not found, got {:X}, bytes {:?}", s, &data);
+        bail!("START not found, got {:X}, bytes {:?}", s, &data);
     }
     // l is the length of total data, including START, LEN, CRC8, END, i.e. payload
     let (l, rest) = rest.split_first().unwrap();
@@ -95,7 +103,7 @@ pub fn decode(data: &BytesMut) -> Result<Vec<u8>, anyhow::Error> {
     let (_c, rest) = rest.split_first().unwrap();
     let (e, _) = rest.split_first().unwrap();
     if (*e) != END {
-      bail!("END not found, got {:X}, bytes {:?}", e, &data);
+        bail!("END not found, got {:X}, bytes {:?}", e, &data);
     }
     Ok(d.to_vec())
 }
