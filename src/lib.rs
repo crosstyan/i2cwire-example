@@ -6,13 +6,13 @@ use embedded_hal::{
 };
 use std::collections::HashMap;
 
-const START: u8 = 0x02;
-const END: u8 = 0x04;
-const DEFAULT_SLAVE_ADDR: u8 = 0x20;
+pub const START: u8 = 0x02;
+pub const END: u8 = 0x04;
+pub const DEFAULT_SLAVE_ADDR: u8 = 0x20;
 
 // a fixed format of request for WirePacket
 // See https://github.com/gutierrezps/ESP32_I2C_Slave/blob/master/README_old.md
-const REQUEST: [u8; 4] = [START, 0x04, 0x00, END];
+pub const REQUEST: [u8; 4] = [START, 0x04, 0x00, END];
 
 // See https://github.com/gutierrezps/ESP32_I2C_Slave/blob/master/README_old.md
 pub struct IoReader<I> {
@@ -57,6 +57,7 @@ where
 
     /// Updates the counts of IOs.
     /// The updated counts are stored in the `ios` field.
+    /// equivalent to `read_bytes` then `data_to_hashmap`.
     /// 
     /// Side effect: the `ios` and `buf` field is updated.
     pub fn update(&mut self) -> Result<(), anyhow::Error> {

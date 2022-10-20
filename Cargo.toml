@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# https://stackoverflow.com/questions/26946646/package-with-both-a-library-and-a-binary
+[lib]
+name = "i2cwire"
+path = "src/lib.rs"
+
+[[bin]]
+name = "i2ctest"
+path = "src/main.rs"
 
 [dependencies]
 bmp180 = { package = "bmp180-nostd", path = "bmp180-nostd" }
