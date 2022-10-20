@@ -10,7 +10,8 @@ const START: u8 = 0x02;
 const END: u8 = 0x04;
 const DEFAULT_SLAVE_ADDR: u8 = 0x20;
 
-// a fixed register is used since the ESP32 I2C slave library only supports one register
+// a fixed format of request for WirePacket
+// See https://github.com/gutierrezps/ESP32_I2C_Slave/blob/master/README_old.md
 const REQUEST: [u8; 4] = [START, 0x04, 0x00, END];
 
 // See https://github.com/gutierrezps/ESP32_I2C_Slave/blob/master/README_old.md
@@ -44,7 +45,9 @@ where
         }
     }
 
-    /// Reads series of bytes into buf from specified reg
+    /// Reads series of bytes into `buf` from I2C.
+    /// 
+    /// Side effect: `buf` is updated
     fn read_bytes(&mut self) -> Result<(), E> {
         let res = self
             .i2c
@@ -52,6 +55,10 @@ where
         res
     }
 
+    /// Updates the counts of IOs.
+    /// The updated counts are stored in the `ios` field.
+    /// 
+    /// Side effect: the `ios` and `buf` field is updated.
     pub fn update(&mut self) -> Result<(), anyhow::Error> {
         let res = self.read_bytes();
         if res.is_err() {
@@ -60,6 +67,9 @@ where
         self.data_to_hashmap()
     }
 
+    /// Read the `buf` field and update the `ios` field.
+    /// 
+    /// Side effect: the `ios` field is updated.
     fn data_to_hashmap(&mut self) -> Result<(), anyhow::Error> {
         let bytes = BytesMut::from(&self.buf[..]);
         let decoded = decode(&bytes)?;
@@ -89,7 +99,9 @@ where
     }
 }
 
-pub fn decode(data: &BytesMut) -> Result<Vec<u8>, anyhow::Error> {
+/// pure function to get a reference of data from the raw bytes wrapped in
+/// `WirePacker` format.
+pub fn decode(data: &BytesMut) -> Result<&[u8], anyhow::Error> {
     // START LEN DATA CRC8 END
     let (s, rest) = data.split_first().unwrap();
     if (*s) != START {
@@ -99,11 +111,12 @@ pub fn decode(data: &BytesMut) -> Result<Vec<u8>, anyhow::Error> {
     let (l, rest) = rest.split_first().unwrap();
     let len = *l as usize - 4; // -4 for START, LEN, CRC8, END
     let (d, rest) = rest.split_at(len as usize);
-    // Don't check CRC8
+    // TODO: actually check CRC8
+    // Hasn't check CRC8
     let (_c, rest) = rest.split_first().unwrap();
     let (e, _) = rest.split_first().unwrap();
     if (*e) != END {
         bail!("END not found, got {:X}, bytes {:?}", e, &data);
     }
-    Ok(d.to_vec())
+    Ok(d)
 }
