@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 bmp180 = { package = "bmp180-nostd", path = "bmp180-nostd" }
 mpu6050 = { path = "mpu6050-rs" }
+bme280 = { path = "bme280-rs" }
 anyhow = "1.0"
 linux-embedded-hal = "0.3.2"
 tokio = { version = "1", features = ["full"] }
@@ -23,3 +24,17 @@ i2cdev = "0.5"
 embedded-hal = "0.2.7"
 crc8 = "0.1.1"
 bytes = { version = "1", features = ["serde"] }
+dirs = "4.0"
+confy = "0.5"
+num-traits = "0.2"
+log = "0.4"
+rumqttc = "0.17"
+crossbeam = "0.8"
+parking_lot = { version = "0.12" }
+nalgebra = "0.24.1"
+base64 = "0.13"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+ctrlc = { version = "3.0", features = ["termination"] }
+env_logger = "0.9.0"

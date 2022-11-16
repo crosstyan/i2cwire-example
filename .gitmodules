@@ -4,3 +4,6 @@
 [submodule "mpu6050-rs"]
 	path = mpu6050-rs
 	url = https://github.com/crosstyan/mpu6050-rs
+[submodule "bme280-rs"]
+	path = bme280-rs
+	url = https://github.com/VersBinarii/bme280-rs
