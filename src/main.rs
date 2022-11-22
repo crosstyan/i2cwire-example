@@ -1,4 +1,4 @@
-use i2cdev::linux::LinuxI2CError;
+use core::panic;
 use linux_embedded_hal::{Delay, I2cdev};
 use log::{debug, error, info, warn};
 use mpu6050::*;
@@ -35,7 +35,12 @@ struct AppConfig {
     enable_i2c: bool,
     i2c_bus: String,
     enable_mpu6050: bool,
-    enable_bmp180: bool,
+    /// the polling rate of mpu6050
+    mpu6050_delay_ms: u64,
+    enable_bmp: bool,
+    /// if true using bmp280, otherwise bmp180.
+    /// bme280 is not impl yet
+    use_bme280: bool,
     enable_iowire: bool,
     i2c_delay_ms: u64,
     mqtt_poll_deadline: u64,
@@ -51,9 +56,11 @@ impl Default for AppConfig {
             mqtt_port: 1883,
             enable_i2c: false,
             i2c_bus: "/dev/i2c-1".into(),
-            enable_bmp180: false,
+            enable_bmp: false,
             enable_iowire: false,
             enable_mpu6050: false,
+            mpu6050_delay_ms: 100,
+            use_bme280: false,
             i2c_delay_ms: 500,
             mqtt_poll_deadline: 1000,
             max_error_count: 3,
@@ -178,23 +185,29 @@ async fn main() {
     /*********** I2C Stuff ***************/
     let mut wire_reader: Option<IoReader<I2cdev>> = None;
     let mut bmp: Option<bmp180::BMP180BarometerThermometer<I2cdev>> = None;
+    // let mut bme: Option<bme280::i2c::BME280<I2cdev>> = None;
     let mut mpu: Option<Mpu6050<I2cdev>> = None;
     let (tx, mut rx) = tokio::sync::mpsc::channel::<I2CMessage>(10);
     if cfg.enable_i2c {
-        if cfg.enable_bmp180 {
-            let i2c_bmp = I2cdev::new(&cfg.i2c_bus).expect("Failed to open i2c device for bmp");
-            // TODO: use tokio delay instead of std::thread::sleep
-            // I don't think it's possible with synchronous API
-            // tokio would create a new thread when possible so
-            // I guess it won't be a problem
-            let delay = Box::new(Delay);
-            let bmp180 = bmp180::BMP180BarometerThermometer::new(
-                i2c_bmp,
-                delay,
-                bmp180::BMP180PressureMode::BMP180Standard,
-            );
-            bmp = Some(bmp180);
-            info!("BMP180 initialized");
+        if cfg.enable_bmp {
+            if cfg.use_bme280.not() {
+                let i2c_bmp = I2cdev::new(&cfg.i2c_bus).expect("Failed to open i2c device for bmp");
+                // TODO: use tokio delay instead of std::thread::sleep
+                // I don't think it's possible with synchronous API
+                // tokio would create a new thread when possible so
+                // I guess it won't be a problem
+                let delay = Box::new(Delay);
+                let bmp180 = bmp180::BMP180BarometerThermometer::new(
+                    i2c_bmp,
+                    delay,
+                    bmp180::BMP180PressureMode::BMP180Standard,
+                );
+                bmp = Some(bmp180);
+                info!("BMP180 initialized");
+            } else {
+                // TODO BME280
+                panic!("BMP280 is not supported yet");
+            }
         }
         if cfg.enable_mpu6050 {
             let i2c_mpu = I2cdev::new(&cfg.i2c_bus).expect("Failed to open i2c device for mpu");
@@ -214,45 +227,52 @@ async fn main() {
         let delay_ms = cfg.i2c_delay_ms;
         let f = run_flag.clone();
         // https://stackoverflow.com/questions/69638710/when-should-you-use-tokiojoin-over-tokiospawn
-        tokio::spawn(async move {
-            while f.load(Ordering::Relaxed) {
-                // query/polling instead of breaking down the whole pipeline
-                match mpu.as_mut() {
-                    Some(mpu) => {
-                        let mut data = MPUData::default();
-                        // get sensor temp
-                        if let Ok(temp) = mpu.get_temp() {
-                            data.temperature = temp;
-                        }
+        let f_mpu = run_flag.clone();
+        let tx_mpu = tx.clone();
+        let mpu_delay_ms = cfg.mpu6050_delay_ms;
+        if cfg.enable_mpu6050 {
+            tokio::spawn(async move {
+                while f_mpu.load(Ordering::Relaxed) {
+                    match mpu.as_mut() {
+                        Some(mpu) => {
+                            let mut data = MPUData::default();
+                            // get sensor temp
+                            if let Ok(temp) = mpu.get_temp() {
+                                data.temperature = temp;
+                            }
 
-                        // get gyro data, scaled with sensitivity
-                        if let Ok(gyro) = mpu.get_gyro() {
-                            // perhaps two different versions of crate `nalgebra` are being used?
-                            // use certain version of nalgebra!
-                            // https://github.com/sebcrozet/kiss3d/issues/66
-                            // The broader issue here is that nalgebra types are
-                            // always incompatible between versions. They tend
-                            // to make a lot of breaking changes between minor
-                            // versions in general.
-                            data.gyro = gyro.into();
-                        }
+                            // get gyro data, scaled with sensitivity
+                            if let Ok(gyro) = mpu.get_gyro() {
+                                // perhaps two different versions of crate `nalgebra` are being used?
+                                // use certain version of nalgebra!
+                                // https://github.com/sebcrozet/kiss3d/issues/66
+                                // The broader issue here is that nalgebra types are
+                                // always incompatible between versions. They tend
+                                // to make a lot of breaking changes between minor
+                                // versions in general.
+                                data.gyro = gyro.into();
+                            }
 
-                        // get accelerometer data, scaled with sensitivity
-                        if let Ok(acc) = mpu.get_acc() {
-                            data.acc = acc.into();
+                            // get accelerometer data, scaled with sensitivity
+                            if let Ok(acc) = mpu.get_acc() {
+                                data.acc = acc.into();
+                            }
+                            // not sure whether blocking send or spawn a tokio task
+                            if let Err(e) = tx_mpu.send(I2CMessage::MPU(data)).await {
+                                error!("mpu tx error: {}", e);
+                            };
                         }
-                        // not sure whether blocking send or spawn a tokio task
-                        if let Err(e) = tx.send(I2CMessage::MPU(data)).await {
-                            error!("mpu tx error: {}", e);
-                        };
-                    }
-                    None => {
-                        if cfg.enable_mpu6050 {
+                        None => {
                             error!("mpu is not found");
                         }
                     }
+                    tokio::time::sleep(Duration::from_millis(mpu_delay_ms)).await;
                 }
-
+            });
+        }
+        tokio::spawn(async move {
+            while f.load(Ordering::Relaxed) {
+                // query/polling instead of breaking down the whole pipeline
                 match bmp.as_mut() {
                     Some(bmp180) => {
                         let mut data = BMPData::default();
@@ -266,7 +286,7 @@ async fn main() {
                         };
                     }
                     None => {
-                        if cfg.enable_bmp180 {
+                        if cfg.enable_bmp {
                             error!("bmp is not found");
                         }
                     }
@@ -354,7 +374,6 @@ async fn main() {
                 match res {
                     Ok(ev) => {
                         if let MqEv::Incoming(pkt) = ev {
-                            error_counter = 0;
                             match pkt {
                                 MqPkt::Publish(publish) => {
                                     let topic = publish.topic;
@@ -366,10 +385,10 @@ async fn main() {
                                         match payload.as_str() {
                                             "send" => {
                                                 send_pic_flag.store(true, Ordering::Relaxed);
-                                            },
+                                            }
                                             "stop" => {
                                                 send_pic_flag.store(false, Ordering::Relaxed);
-                                            },
+                                            }
                                             &_ => {
                                                 error!("unknown command: {}", payload);
                                             }
@@ -388,7 +407,8 @@ async fn main() {
                                     }
                                 }
                                 MqPkt::PingResp => {
-                                    // Don't care
+                                    // set the counter to 0 and continue
+                                    error_counter = 0;
                                 }
                                 MqPkt::PingReq => {
                                     // Don't care
